@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/Ciao1019/ArcMD/internal/editor"
 	"github.com/Ciao1019/ArcMD/internal/i18n"
 	"github.com/Ciao1019/ArcMD/internal/prefs"
 	"github.com/egoist/mygo/ui"
@@ -224,6 +225,11 @@ func (a *App) settingsGeneral(c *ui.Context) {
 			a.prefs.CodeNoWrap = !codeWrap
 			a.savePrefs()
 		}
+		ui.Box(c).Height(1).Margin(0, 12).Background(t.Text.Alpha(0.06))
+		toggleRow(c, "obsidian-compat", i18n.T("Obsidian 兼容"), i18n.T("保留 ==高亮== 写法：编辑和导出都不改写成 <mark> HTML，方便与 Obsidian 共用同一份 Markdown。"), &a.prefs.ObsidianCompat, func() {
+			editor.SetObsidianCompat(a.prefs.ObsidianCompat)
+			a.savePrefs()
+		})
 	})
 	a.settingsUpdates(c)
 }

@@ -981,6 +981,8 @@ var en = map[string]string{
 	"回到最新":                         "Jump to latest",
 	"代码块自动换行":                      "Wrap Code Lines",
 	"关闭后长代码行横向滚动，也可在单个代码块右上角单独切换。": "When off, long lines scroll horizontally. Toggle per block from the top-right corner.",
+	"Obsidian 兼容": "Obsidian Compatibility",
+	"保留 ==高亮== 写法：编辑和导出都不改写成 <mark> HTML，方便与 Obsidian 共用同一份 Markdown。": "Keep ==highlight== as written: editing and export never rewrite it as <mark> HTML, so Obsidian can share the same Markdown file.",
 	"自动换行":               "Wrap",
 	"不换行":                "No Wrap",
 	"代码块：切换自动换行":         "Code Block: Toggle Line Wrap",

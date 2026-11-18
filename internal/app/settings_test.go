@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/Ciao1019/ArcMD/internal/editor"
 	"github.com/Ciao1019/ArcMD/internal/vault"
 	"github.com/egoist/mygo/ui"
 )
@@ -210,5 +211,72 @@ func TestToolbarCorner(t *testing.T) {
 	}
 	if _, ok := tt.Find("更多格式"); ok {
 		t.Fatal("format menu shown over the export preview")
+	}
+}
+
+// The writing settings' Obsidian compatibility switch drives the editor's
+// Markdown writer, and the choice is saved with the other preferences.
+func TestObsidianCompatSetting(t *testing.T) {
+	a, tt := newTestApp(t)
+	t.Cleanup(func() { editor.SetObsidianCompat(false) })
+	if editor.ObsidianCompat() {
+		t.Fatal("Obsidian compatibility should start off")
+	}
+	a.openSettings(tabGeneral)
+	tt.Frame()
+	tt.Scroll(600, 500, 0, 500)
+	tt.Frame()
+	if !tt.HasText("Obsidian 兼容") {
+		t.Fatalf("writing settings have no Obsidian switch: %q", tt.Texts())
+	}
+	// Find names the row's text; the switch sits at the row's trailing edge,
+	// below the text line.
+	r, ok := tt.Find("Obsidian 兼容")
+	if !ok {
+		t.Fatal("Obsidian compatibility row is missing")
+	}
+	switchAt := func() { tt.ClickAt(r.X+r.W+28, r.Y+r.H-1); tt.Frame() }
+	switchAt()
+	if !a.prefs.ObsidianCompat || !editor.ObsidianCompat() {
+		t.Fatal("the switch did not turn Obsidian compatibility on")
+	}
+	stored, err := a.prefStore.Load()
+	if err != nil || !stored.ObsidianCompat {
+		t.Fatalf("preference not saved: %+v, %v", stored, err)
+	}
+	switchAt()
+	if a.prefs.ObsidianCompat || editor.ObsidianCompat() {
+		t.Fatal("the switch did not turn Obsidian compatibility off")
+	}
+}
+
+// With Obsidian compatibility on, saving an edited block keeps ==text== in the
+// file instead of rewriting it as <mark>.
+func TestObsidianCompatAppSaveKeepsHighlightSyntax(t *testing.T) {
+	a, tt := newTestApp(t)
+	t.Cleanup(func() { editor.SetObsidianCompat(false) })
+	src := "# Notes\n\nAn ==important== point.\n"
+	if err := vault.Write(root(a), "Notes.md", src); err != nil {
+		t.Fatal(err)
+	}
+	a.refreshTree()
+	a.open("Notes.md")
+	tt.Frame()
+	a.prefs.ObsidianCompat = true
+	editor.SetObsidianCompat(true)
+	leaf := a.doc.ed.Doc.Leaves()[1]
+	a.doc.ed.Replace(leaf.End-6, leaf.End, "there")
+	if err := a.doc.save(); err != nil {
+		t.Fatal(err)
+	}
+	got, err := vault.Read(root(a), "Notes.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(got, "<mark>") {
+		t.Fatalf("saved file was rewritten as HTML:\n%s", got)
+	}
+	if !strings.Contains(got, "==important==") {
+		t.Fatalf("saved file lost ==important==:\n%s", got)
 	}
 }

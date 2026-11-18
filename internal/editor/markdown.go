@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"unicode"
 	"unicode/utf8"
 
@@ -1049,9 +1050,24 @@ func buildChunkBuckets(orig parsedMarkdown) map[uint64][]int {
 	return buckets
 }
 
+// obsidianCompat writes yellow highlights as Obsidian's ==text== instead of
+// ArcMD's <mark>, and leaves literal == in text alone instead of escaping it.
+// The app sets it from the "Obsidian 兼容" writing preference.
+var obsidianCompat atomic.Bool
+
+// SetObsidianCompat controls whether Markdown exports keep Obsidian's
+// ==highlight== syntax. With it on, an unedited file keeps its ==text==
+// spelling and an edited one is written back with ==text== rather than
+// <mark>text</mark>, so Obsidian and ArcMD can share the same file.
+func SetObsidianCompat(on bool) { obsidianCompat.Store(on) }
+
+// ObsidianCompat reports whether exports keep Obsidian's ==highlight== syntax.
+func ObsidianCompat() bool { return obsidianCompat.Load() }
+
 // ExportMarkdown serializes a rich Document to standard Markdown, preserving
 // custom ArcMD features via GFM extensions, YAML frontmatter and semantic HTML,
-// while keeping unedited blocks from ImportSource byte-for-byte intact.
+// while keeping unedited blocks from ImportSource byte-for-byte intact. With
+// Obsidian compatibility on, a yellow highlight is written as ==text==.
 func ExportMarkdown(doc *document.Document) string {
 	if doc.ImportSource != "" {
 		orig, buckets := parseMarkdownForExport(doc.ImportSource)
@@ -1692,6 +1708,10 @@ func renderMarkdownRunSlice(runs []document.Run, before, after rune) string {
 			chunk = "<" + val + ">" + inner + "</" + val + ">"
 		case "span":
 			tag, attrs := spanTagAndAttrs(r.Style)
+			if obsidianCompat.Load() && tag == "mark" && attrs == "" && canWriteObsidianHighlight(sub, inner, prev, next) {
+				chunk = "==" + inner + "=="
+				break
+			}
 			if attrs != "" {
 				chunk = "<" + tag + " " + attrs + ">" + inner + "</" + tag + ">"
 			} else {
@@ -1705,6 +1725,31 @@ func renderMarkdownRunSlice(runs []document.Run, before, after rune) string {
 		i = j
 	}
 	return out.String()
+}
+
+// canWriteObsidianHighlight reports whether a yellow highlight group can be
+// written as Obsidian's ==text== and read back as the same highlight. Nested
+// formatting, line breaks, math, footnotes and images stay in <mark> (which
+// both ArcMD and Obsidian render), because ArcMD reads == only in plain text.
+// A '=' beside a delimiter would merge into a longer run of '=', so it falls
+// back too.
+func canWriteObsidianHighlight(runs []document.Run, inner string, prev, next rune) bool {
+	for _, r := range runs {
+		st := r.Style
+		if st.Bold || st.Italic || st.Underline || st.Strike || st.Code || st.Link != "" || st.Script != "" {
+			return false
+		}
+	}
+	if inner == "" || strings.ContainsAny(inner, "\n\u2028$") || strings.Contains(inner, "==") ||
+		strings.Contains(inner, "[^") || strings.Contains(inner, "![") {
+		return false
+	}
+	first, _ := utf8.DecodeRuneInString(inner)
+	last, _ := utf8.DecodeLastRuneInString(inner)
+	if first == ' ' || first == '\t' || first == '=' || last == ' ' || last == '\t' || last == '=' {
+		return false
+	}
+	return prev != '=' && prev != '\\' && next != '='
 }
 
 // markdownEscape leaves ']' unescaped because ExtMath treats '\[...\]' as TeX
@@ -1766,6 +1811,10 @@ func escapePlainSegment(s string) string {
 
 func escapeMarkdownPlain(s string) string {
 	out := markdownEscape.Replace(s)
+	if obsidianCompat.Load() {
+		// Obsidian reads ==text== itself; keep the spelling as typed.
+		return out
+	}
 	// Only escape "==" when it would be misread as ==highlight== syntax.
 	if strings.Contains(out, "==") && len(splitHighlightSyntax(out, document.Style{})) > 1 {
 		out = strings.ReplaceAll(out, "==", `\==`)
@@ -1808,6 +1857,9 @@ func escapeWikiInner(inner string) string {
 		i += n
 	}
 	out := b.String()
+	if obsidianCompat.Load() {
+		return out
+	}
 	if strings.Contains(out, "==") && len(splitHighlightSyntax(out, document.Style{})) > 1 {
 		out = strings.ReplaceAll(out, "==", `\==`)
 	}

@@ -27,6 +27,11 @@ type Prefs struct {
 	// CodeNoWrap disables soft wrapping in code blocks by default so long
 	// lines scroll horizontally instead.
 	CodeNoWrap bool `json:"codeNoWrap,omitempty"`
+	// ObsidianCompat keeps Obsidian's ==highlight== syntax when writing
+	// Markdown: a yellow highlight exports as ==text== rather than <mark>,
+	// and text typed with == is left as written, so a file shared with
+	// Obsidian is not rewritten into HTML.
+	ObsidianCompat bool `json:"obsidianCompat,omitempty"`
 	// RecentCommands are the command bar's commands used last, latest
 	// first, which it lists first.
 	RecentCommands []string `json:"recentCommands,omitempty"`

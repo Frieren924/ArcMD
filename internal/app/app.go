@@ -282,6 +282,7 @@ func New(cfg Config) (*App, error) {
 		a.prefs, a.prefsBroken = &prefs.Prefs{Version: prefs.CurrentVersion}, true
 		a.notify("读取偏好设置失败，本次使用默认设置且不会覆盖原文件。%v", err)
 	}
+	editor.SetObsidianCompat(a.prefs.ObsidianCompat)
 	a.systemLanguage = "zh-Hans"
 	a.applyLanguage()
 	st, err := a.store.Load()

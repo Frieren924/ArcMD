@@ -73,6 +73,12 @@ func (e *Editor) trySmartInput(r *ui.TextInputRange, text string) bool {
 		return e.trySmartEllipsis(l, lineBefore)
 	case "*", "~", "`":
 		return e.tryLiveInlineMarkdown(l, raw, lineStartByte, bytePos, text)
+	case "=":
+		// Obsidian compatibility turns typed ==text== into a yellow highlight;
+		// off, '=' stays ordinary text.
+		if ObsidianCompat() {
+			return e.tryLiveInlineMarkdown(l, raw, lineStartByte, bytePos, text)
+		}
 	}
 	return false
 }
@@ -210,6 +216,16 @@ func (e *Editor) tryLiveInlineMarkdown(l document.Leaf, raw string, lineStartByt
 				delim, mark = "~", "strike"
 			}
 		}
+
+	case "=":
+		// The second '=' of a closing == completes an Obsidian highlight.
+		if strings.HasSuffix(line, "=") && !strings.HasSuffix(line, "==") {
+			prefix := line[:len(line)-1]
+			openIdx = findInlineOpener(prefix, "==")
+			if openIdx >= 0 {
+				delim, mark = "==", "highlight"
+			}
+		}
 	}
 
 	forward := false
@@ -253,6 +269,16 @@ func (e *Editor) tryLiveInlineMarkdown(l document.Leaf, raw string, lineStartByt
 				delim, mark, openStartByte = "~", "strike", caretByte
 			}
 			if delim != "" && !strings.HasPrefix(after, "~") && !(openStartByte > lineStartByte && (raw[openStartByte-1] == '~' || raw[openStartByte-1] == '\\')) {
+				if c := findInlineCloser(after, delim); c > 0 {
+					closeOff, forward = c, true
+				}
+			}
+		case "=":
+			// The second '=' of an opening == pairs with a closer already typed.
+			if strings.HasSuffix(line, "=") && !strings.HasSuffix(line, "==") {
+				delim, mark, openStartByte = "==", "highlight", caretByte-1
+			}
+			if delim != "" && !strings.HasPrefix(after, "=") && !(openStartByte > lineStartByte && (raw[openStartByte-1] == '=' || raw[openStartByte-1] == '\\')) {
 				if c := findInlineCloser(after, delim); c > 0 {
 					closeOff, forward = c, true
 				}
@@ -328,6 +354,8 @@ func (e *Editor) tryLiveInlineMarkdown(l document.Leaf, raw string, lineStartByt
 			middle[i].Style.Strike = true
 		case "code":
 			middle[i].Style.Code = true
+		case "highlight":
+			middle[i].Style.Highlight = "light-yellow"
 		}
 	}
 	nextStyle := baseTyping
@@ -342,6 +370,8 @@ func (e *Editor) tryLiveInlineMarkdown(l document.Leaf, raw string, lineStartByt
 		nextStyle.Strike = false
 	case "code":
 		nextStyle.Code = false
+	case "highlight":
+		nextStyle.Highlight = ""
 	}
 	nextRuns := append(append(prefix, middle...), suffix...)
 	e.Engine.ReplaceBlockRuns(l.Block.ID, nextRuns, newCaret, newCaret, nextStyle, true)
