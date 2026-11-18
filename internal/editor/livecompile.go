@@ -375,6 +375,12 @@ func (e *Editor) tryLiveInlineMarkdown(l document.Leaf, raw string, lineStartByt
 	}
 	nextRuns := append(append(prefix, middle...), suffix...)
 	e.Engine.ReplaceBlockRuns(l.Block.ID, nextRuns, newCaret, newCaret, nextStyle, true)
+	if !forward && len(middle) > 0 {
+		// Typing at the closing boundary starts plain even after the caret
+		// is moved or the selection is reset, so a closed mark does not
+		// spread to trailing text.
+		e.Engine.PlainTypingAfterMark(l.Block.ID, newCaret, middle[len(middle)-1].Style)
+	}
 	e.sync()
 	e.pairRevision = e.Revision()
 	e.smartBack = smartRollback{

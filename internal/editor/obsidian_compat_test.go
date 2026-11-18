@@ -137,3 +137,111 @@ func TestObsidianCompatCompilesTypedHighlight(t *testing.T) {
 		t.Fatalf("Backspace did not restore the literal highlight: %q", got)
 	}
 }
+
+// A closed highlight must not spread to text typed after it, even when a click
+// or an arrow key resets the typing style at the closing boundary.
+func TestObsidianCompatClosedHighlightDoesNotSpread(t *testing.T) {
+	useObsidianCompat(t)
+	for _, move := range []string{"reselect", "away-and-back"} {
+		t.Run(move, func(t *testing.T) {
+			e, tt := newTester("")
+			focus(e, tt)
+			typeKeys(tt, "==highlightText==")
+			switch move {
+			case "reselect":
+				e.SetSelection(e.Caret, e.Caret)
+			case "away-and-back":
+				e.SetSelection(0, 0)
+				tt.Frame()
+				e.SetSelection(e.Len(), e.Len())
+			}
+			tt.Frame()
+			if got := e.CurrentStyle(); got.Highlight != "" {
+				t.Fatalf("caret at the closed highlight still reports %q", got.Highlight)
+			}
+			typeKeys(tt, " tail")
+			runs := e.Doc.Blocks[0].Runs
+			last := runs[len(runs)-1]
+			if last.Style.Highlight != "" || !strings.HasSuffix(last.Text, " tail") {
+				t.Fatalf("trailing text took the highlight: %+v", runs)
+			}
+		})
+	}
+
+	// Typing before a highlight at the start of the block is plain too.
+	e, tt := newTester("")
+	focus(e, tt)
+	typeKeys(tt, "==highlight==")
+	e.SetSelection(0, 0)
+	tt.Frame()
+	if got := e.CurrentStyle(); got.Highlight != "" {
+		t.Fatalf("caret before the highlight reports %q", got.Highlight)
+	}
+	typeKeys(tt, "pre ")
+	runs := e.Doc.Blocks[0].Runs
+	if len(runs) < 2 || runs[0].Style.Highlight != "" || runs[1].Style.Highlight != "light-yellow" {
+		t.Fatalf("text before the highlight was not plain: %+v", runs)
+	}
+}
+
+// The same closed-boundary rule keeps live **bold** and *italic* from
+// spreading after their closing markers.
+func TestLiveMarkdownClosedMarksDoNotSpread(t *testing.T) {
+	for _, tc := range []struct {
+		literal string
+		bold    bool
+		italic  bool
+	}{
+		{"**bold**", true, false},
+		{"*italic*", false, true},
+	} {
+		e, tt := newTester("")
+		focus(e, tt)
+		typeKeys(tt, tc.literal)
+		e.SetSelection(e.Caret, e.Caret)
+		tt.Frame()
+		typeKeys(tt, " tail")
+		runs := e.Doc.Blocks[0].Runs
+		last := runs[len(runs)-1]
+		if last.Style.Bold || last.Style.Italic || !strings.HasSuffix(last.Text, " tail") {
+			t.Fatalf("%s spread to trailing text: %+v", tc.literal, runs)
+		}
+	}
+}
+
+// An imported highlight ends at its closing boundary too: typing after a
+// reopened ==text== or <mark> does not extend the highlight.
+func TestObsidianCompatImportedHighlightDoesNotSpread(t *testing.T) {
+	useObsidianCompat(t)
+	for _, src := range []string{"==highlightText==", "<mark>highlightText</mark>", "==highlightText== tail"} {
+		e, tt := newTester(src)
+		focus(e, tt)
+		boundary := document.Len("highlightText")
+		e.SetSelection(boundary, boundary)
+		tt.Frame()
+		if got := e.CurrentStyle(); got.Highlight != "" {
+			t.Fatalf("%q: caret at the highlight end reports %q", src, got.Highlight)
+		}
+		typeKeys(tt, "NEW")
+		var highlighted []string
+		for _, r := range e.Doc.Blocks[0].Runs {
+			if r.Style.Highlight != "" {
+				highlighted = append(highlighted, r.Text)
+			}
+		}
+		if len(highlighted) != 1 || highlighted[0] != "highlightText" {
+			t.Fatalf("%q: NEW took the highlight: %+v", src, e.Doc.Blocks[0].Runs)
+		}
+	}
+
+	// Editing inside the highlight still keeps its style.
+	e, tt := newTester("==highlightText==")
+	focus(e, tt)
+	e.SetSelection(4, 4)
+	tt.Frame()
+	typeKeys(tt, "X")
+	runs := e.Doc.Blocks[0].Runs
+	if len(runs) != 1 || !strings.Contains(runs[0].Text, "X") || runs[0].Style.Highlight != "light-yellow" {
+		t.Fatalf("typing inside the highlight lost its style: %+v", runs)
+	}
+}

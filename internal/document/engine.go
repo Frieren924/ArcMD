@@ -34,6 +34,12 @@ type Engine struct {
 	textChange           TextChange
 	OnBeforeChange       func()
 	OnBeforeLeafChange   func(id string, runs []Run)
+	// plainAt, in plainBlockID, is the end of an inline mark compiled live
+	// from Markdown (==highlight==, **bold**, ...). Typing there starts with
+	// no marks, so closing the mark does not spread it to following text.
+	plainAt      int
+	plainBlockID string
+	plainStyle   Style
 }
 
 func (e *Engine) notifyBeforeChange() {
@@ -190,16 +196,81 @@ func (e *Engine) Redo() {
 	e.version++
 }
 
+// PlainTypingAfterMark makes typing at at, the end of an inline mark that was
+// just compiled from Markdown in blockID, start with no marks. The block and
+// run style are kept so a later edit that rewrites that boundary is not
+// mistaken for this one.
+func (e *Engine) PlainTypingAfterMark(blockID string, at int, style Style) {
+	e.plainBlockID, e.plainAt, e.plainStyle = blockID, at, style
+}
+
+// styleAtBoundary returns the style of the run that ends at document offset
+// at, and whether a run ends exactly there.
+func styleAtBoundary(leaf Leaf, at int) (Style, bool) {
+	if at < leaf.Start || at > leaf.End {
+		return Style{}, false
+	}
+	position := leaf.Start
+	for _, run := range leaf.Block.Runs {
+		position += Len(run.Text)
+		if position == at {
+			return run.Style, true
+		}
+		if position > at {
+			break
+		}
+	}
+	return Style{}, false
+}
+
+// stylePastRun ends a highlight at the end of runs[i] unless the next visible
+// run continues the same highlight. Typing just after ==text== (or after an
+// imported <mark>) therefore starts plain instead of extending the highlight.
+func stylePastRun(runs []Run, i int, style Style) Style {
+	if style.Highlight == "" {
+		return style
+	}
+	for _, next := range runs[i+1:] {
+		if next.Text == "" {
+			continue
+		}
+		if next.Style.Highlight != style.Highlight {
+			style.Highlight = ""
+		}
+		return style
+	}
+	style.Highlight = ""
+	return style
+}
+
+// atCompiledMarkEnd reports whether a collapsed caret at at sits where a
+// Markdown-compiled mark closed and still ends with that mark's style.
+func (e *Engine) atCompiledMarkEnd(leaf Leaf, at int) bool {
+	if e.plainBlockID == "" || leaf.Block.ID != e.plainBlockID || at != e.plainAt {
+		return false
+	}
+	style, ok := styleAtBoundary(leaf, at)
+	return ok && style == e.plainStyle
+}
+
 func (e *Engine) CurrentStyle() Style {
 	if e.Explicit {
 		return e.Typing
 	}
 	leaf := e.LeafAt(min(e.Anchor, e.Caret))
+	if e.Anchor == e.Caret {
+		if e.Caret == leaf.Start || e.atCompiledMarkEnd(leaf, e.Caret) {
+			return Style{}
+		}
+	}
 	position := leaf.Start
-	for _, run := range leaf.Block.Runs {
+	for i, run := range leaf.Block.Runs {
 		position += Len(run.Text)
-		if position > min(e.Anchor, e.Caret) || e.Anchor == e.Caret && position == e.Caret {
+		if position > min(e.Anchor, e.Caret) {
 			return run.Style
+		}
+		if e.Anchor == e.Caret && position == e.Caret {
+			return stylePastRun(leaf.Block.Runs, i, run.Style)
 		}
 	}
 	return Style{}
@@ -246,11 +317,17 @@ func (e *Engine) currentStyleIn(leaf Leaf, a, z int) Style {
 		return e.Typing
 	}
 	at := min(a, z)
+	if a == z && (at == leaf.Start || e.atCompiledMarkEnd(leaf, at)) {
+		return Style{}
+	}
 	position := leaf.Start
-	for _, run := range leaf.Block.Runs {
+	for i, run := range leaf.Block.Runs {
 		position += Len(run.Text)
-		if position > at || a == z && position == z {
+		if position > at {
 			return run.Style
+		}
+		if a == z && position == z {
+			return stylePastRun(leaf.Block.Runs, i, run.Style)
 		}
 	}
 	return Style{}
