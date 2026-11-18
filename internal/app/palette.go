@@ -672,6 +672,7 @@ func (a *App) editorActions(cmd func(string, string, func())) {
 	cmd(i18n.T("斜体"), a.keyLabel("italic"), after(func() { ed.Wrap("*") }))
 	cmd(i18n.T("删除线"), a.keyLabel("strike"), after(func() { ed.Wrap("~~") }))
 	cmd(i18n.T("行内代码"), a.keyLabel("code"), after(func() { ed.Wrap("`") }))
+	cmd(i18n.T("高亮"), a.keyLabel("highlight"), after(func() { ed.Engine.ToggleHighlight() }))
 	for _, item := range []struct{ name, prefix string }{
 		{i18n.T("正文"), ""}, {i18n.T("一级标题"), "# "}, {i18n.T("二级标题"), "## "}, {i18n.T("三级标题"), "### "},
 		{i18n.T("四级标题"), "#### "}, {i18n.T("五级标题"), "##### "}, {i18n.T("六级标题"), "###### "},

@@ -845,6 +845,7 @@ var en = map[string]string{
 	"高亮块":     "Callout",
 	"高亮块颜色":   "Callout Color",
 	"高亮块颜色：":  "Callout Color: ",
+	"高亮":      "Highlight",
 	"黄色":      "Yellow",
 	"黄色 · 警告": "Yellow · Warning",
 	"）下只突出光标所在的段落。":          ") brings out only the paragraph being written.",

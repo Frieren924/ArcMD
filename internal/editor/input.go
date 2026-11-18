@@ -165,6 +165,8 @@ func (e *Editor) command(command string, read func() string, write func(string))
 		e.Wrap("_")
 	case "strikethrough":
 		e.Wrap("~~")
+	case "highlight":
+		e.Engine.ToggleHighlight()
 	case "delete":
 		e.delete(-1, false, false)
 	default:
@@ -262,6 +264,10 @@ func (e *Editor) key(ev ui.InputEvent, read func() string, write func(string)) b
 		return e.command("strikethrough", read, write)
 	case "code":
 		e.Wrap("`")
+		e.reveal = true
+		return true
+	case "highlight":
+		e.Engine.ToggleHighlight()
 		e.reveal = true
 		return true
 	case "newline":

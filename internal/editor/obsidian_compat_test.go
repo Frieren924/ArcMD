@@ -245,3 +245,69 @@ func TestObsidianCompatImportedHighlightDoesNotSpread(t *testing.T) {
 		t.Fatalf("typing inside the highlight lost its style: %+v", runs)
 	}
 }
+
+// The highlight shortcut makes a closed highlight at the caret deliberately
+// continue, and toggles the yellow highlight on selected text.
+func TestHighlightToggleContinuesAClosedMark(t *testing.T) {
+	useObsidianCompat(t)
+	e, tt := newTester("")
+	focus(e, tt)
+	typeKeys(tt, "==highlightText==")
+	e.SetSelection(e.Caret, e.Caret)
+	tt.Frame()
+	tt.Key(ui.Cmd|ui.Alt, ui.KeyH)
+	tt.Frame()
+	if got := e.CurrentStyle(); got.Highlight != "light-yellow" {
+		t.Fatalf("highlight shortcut did not arm continuation: %q", got.Highlight)
+	}
+	typeKeys(tt, " tail")
+	runs := e.Doc.Blocks[0].Runs
+	if len(runs) != 1 || runs[0].Style.Highlight != "light-yellow" || !strings.HasSuffix(runs[0].Text, " tail") {
+		t.Fatalf("deliberate continuation did not stay highlighted: %+v", runs)
+	}
+
+	// Moving to the new end and typing leaves the mark without the shortcut.
+	e.SetSelection(e.Caret, e.Caret)
+	tt.Frame()
+	typeKeys(tt, " plain")
+	runs = e.Doc.Blocks[0].Runs
+	last := runs[len(runs)-1]
+	if last.Style.Highlight != "" || !strings.HasSuffix(last.Text, " plain") {
+		t.Fatalf("typing past the end stayed highlighted: %+v", runs)
+	}
+
+	// The shortcut toggles its armed style off again.
+	e.SetSelection(e.Caret, e.Caret)
+	tt.Frame()
+	tt.Key(ui.Cmd|ui.Alt, ui.KeyH)
+	tt.Frame()
+	tt.Key(ui.Cmd|ui.Alt, ui.KeyH)
+	tt.Frame()
+	typeKeys(tt, " again")
+	runs = e.Doc.Blocks[0].Runs
+	last = runs[len(runs)-1]
+	if last.Style.Highlight != "" || !strings.HasSuffix(last.Text, " again") {
+		t.Fatalf("highlight shortcut did not toggle off: %+v", runs)
+	}
+}
+
+func TestHighlightToggleSelection(t *testing.T) {
+	e, tt := newTester("plain words")
+	focus(e, tt)
+	e.SetSelection(0, e.Len())
+	tt.Frame()
+	tt.Key(ui.Cmd|ui.Alt, ui.KeyH)
+	tt.Frame()
+	for _, r := range e.Doc.Blocks[0].Runs {
+		if r.Style.Highlight != "light-yellow" {
+			t.Fatalf("selection was not highlighted: %+v", e.Doc.Blocks[0].Runs)
+		}
+	}
+	tt.Key(ui.Cmd|ui.Alt, ui.KeyH)
+	tt.Frame()
+	for _, r := range e.Doc.Blocks[0].Runs {
+		if r.Style.Highlight != "" {
+			t.Fatalf("selection highlight was not cleared: %+v", e.Doc.Blocks[0].Runs)
+		}
+	}
+}

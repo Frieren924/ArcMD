@@ -98,6 +98,11 @@ func (e *Editor) moreMenu(c *ui.Context, leaf document.Leaf) {
 			if sub.Item(i18n.T("下标")).Checked(style.Script == "sub").Chosen() {
 				e.SetScript("sub")
 			}
+			sub.Separator()
+			if sub.Item(i18n.T("高亮")).Checked(style.Highlight != "").Chosen() {
+				e.Engine.ToggleHighlight()
+				e.RequestFocus = true
+			}
 		})
 		m.Submenu(i18n.T("手绘标注"), func(sub *ui.Menu) {
 			for _, name := range document.Annotations {

@@ -769,6 +769,49 @@ func (e *Engine) Toggle(mark string) {
 	e.applyFormat(func(s *Style) { *get(s) = on })
 }
 
+// ToggleHighlight turns the yellow highlight on or off for the selection, or
+// for what is typed next at a collapsed caret, where it makes a closed
+// ==highlight== at the caret deliberately continue.
+func (e *Engine) ToggleHighlight() {
+	if e.ReadOnly {
+		return
+	}
+	a, z := min(e.Anchor, e.Caret), max(e.Anchor, e.Caret)
+	if a == z {
+		style := e.CurrentStyle()
+		if style.Highlight == "" {
+			style.Highlight = "light-yellow"
+		} else {
+			style.Highlight = ""
+		}
+		e.Typing, e.Explicit = style, true
+		return
+	}
+	all := true
+	for _, leaf := range e.Doc.Leaves() {
+		start, end := max(a, leaf.Start)-leaf.Start, min(z, leaf.End)-leaf.Start
+		if end <= start {
+			continue
+		}
+		for _, run := range SliceRuns(leaf.Block.Runs, start, end) {
+			if run.Style.Highlight == "" {
+				all = false
+				break
+			}
+		}
+		if !all {
+			break
+		}
+	}
+	e.applyFormat(func(s *Style) {
+		if all {
+			s.Highlight = ""
+		} else {
+			s.Highlight = "light-yellow"
+		}
+	})
+}
+
 // SetTextColor colors the selection's text, or what is typed next at a
 // collapsed caret: color and highlight replace the current ones unless
 // nil; "" clears one.
