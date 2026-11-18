@@ -255,7 +255,7 @@ func TestHighlightToggleContinuesAClosedMark(t *testing.T) {
 	typeKeys(tt, "==highlightText==")
 	e.SetSelection(e.Caret, e.Caret)
 	tt.Frame()
-	tt.Key(ui.Cmd|ui.Alt, ui.KeyH)
+	tt.Key(ui.Cmd|ui.Shift, ui.KeyY)
 	tt.Frame()
 	if got := e.CurrentStyle(); got.Highlight != "light-yellow" {
 		t.Fatalf("highlight shortcut did not arm continuation: %q", got.Highlight)
@@ -279,9 +279,9 @@ func TestHighlightToggleContinuesAClosedMark(t *testing.T) {
 	// The shortcut toggles its armed style off again.
 	e.SetSelection(e.Caret, e.Caret)
 	tt.Frame()
-	tt.Key(ui.Cmd|ui.Alt, ui.KeyH)
+	tt.Key(ui.Cmd|ui.Shift, ui.KeyY)
 	tt.Frame()
-	tt.Key(ui.Cmd|ui.Alt, ui.KeyH)
+	tt.Key(ui.Cmd|ui.Shift, ui.KeyY)
 	tt.Frame()
 	typeKeys(tt, " again")
 	runs = e.Doc.Blocks[0].Runs
@@ -296,14 +296,14 @@ func TestHighlightToggleSelection(t *testing.T) {
 	focus(e, tt)
 	e.SetSelection(0, e.Len())
 	tt.Frame()
-	tt.Key(ui.Cmd|ui.Alt, ui.KeyH)
+	tt.Key(ui.Cmd|ui.Shift, ui.KeyY)
 	tt.Frame()
 	for _, r := range e.Doc.Blocks[0].Runs {
 		if r.Style.Highlight != "light-yellow" {
 			t.Fatalf("selection was not highlighted: %+v", e.Doc.Blocks[0].Runs)
 		}
 	}
-	tt.Key(ui.Cmd|ui.Alt, ui.KeyH)
+	tt.Key(ui.Cmd|ui.Shift, ui.KeyY)
 	tt.Frame()
 	for _, r := range e.Doc.Blocks[0].Runs {
 		if r.Style.Highlight != "" {

@@ -25,7 +25,7 @@ func DefaultBindings() map[string]Combo {
 		"underline": {ui.Cmd, ui.KeyU},
 		"strike":    {ui.Cmd | ui.Shift, ui.KeyX},
 		"code":      {ui.Cmd, ui.KeyE},
-		"highlight": {ui.Cmd | ui.Alt, ui.KeyH},
+		"highlight": {ui.Cmd | ui.Shift, ui.KeyY},
 		"find":      {ui.Cmd, ui.KeyF},
 		"replace":   {ui.Cmd | ui.Shift, ui.KeyH},
 		"newline":   {ui.Cmd, ui.KeyEnter},
